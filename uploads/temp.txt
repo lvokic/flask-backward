@@ -1,0 +1,96 @@
+设计一个图书馆管理系统的数据库。该系统应支持以下功能：
+	•	管理图书信息（如名称、作者、ISBN、分类等）
+	•	管理用户信息（如用户姓名、联系方式等）
+	•	记录图书借阅和归还情况
+
+任务要求：
+	1.	数据库设计：
+	•	设计图书表（包括图书名称、作者、出版社、ISBN编号、类别）。
+	•	设计用户表（包括用户ID、姓名、联系方式）。
+	•	设计借阅记录表（包括借阅ID、图书ID、用户ID、借阅时间、归还时间、借阅状态）。
+	•	设计表结构时，使用适当的约束条件，如主键、外键等。
+	2.	SQL查询：
+根据设计的数据库结构，编写以下SQL查询：
+	•	查询所有未归还的图书借阅记录。
+	•	查询某个用户的借阅历史（包括借阅时间和归还时间）。
+	•	查询借阅次数最多的图书。
+	•	查询每月借阅图书的总数。
+	•	查询某类别下所有图书的借阅情况。
+	3.	数据库优化：
+	•	针对借阅记录表，提出并实现优化方案，提升查询性能。
+	•	提供适当的索引设计，优化频繁查询的“热门图书”查询。
+
+
+答案：
+-- 1. 创建图书表 (Books)
+CREATE TABLE Books (
+    book_id INTEGER PRIMARY KEY AUTOINCREMENT,    -- 图书ID，自增长
+    title TEXT NOT NULL,                          -- 图书名称
+    author TEXT,                                  -- 作者
+    publisher TEXT,                               -- 出版社
+    isbn TEXT UNIQUE NOT NULL,                    -- ISBN编号，唯一
+    category TEXT,                                -- 类别
+    available_copies INTEGER DEFAULT 0            -- 可借阅的数量
+);
+
+-- 2. 创建用户表 (Users)
+CREATE TABLE Users (
+    user_id INTEGER PRIMARY KEY AUTOINCREMENT,    -- 用户ID，自增长
+    name TEXT NOT NULL,                           -- 用户姓名
+    contact_info TEXT,                            -- 用户联系方式
+    registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP  -- 注册时间
+);
+
+-- 3. 创建借阅记录表 (BorrowRecords)
+CREATE TABLE BorrowRecords (
+    borrow_id INTEGER PRIMARY KEY AUTOINCREMENT,  -- 借阅ID，自增长
+    book_id INTEGER NOT NULL,                     -- 图书ID（外键）
+    user_id INTEGER NOT NULL,                     -- 用户ID（外键）
+    borrow_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,  -- 借阅时间
+    return_date TIMESTAMP,                        -- 归还时间
+    status TEXT CHECK (status IN ('borrowed', 'returned')) DEFAULT 'borrowed',  -- 借阅状态，默认为借出
+    FOREIGN KEY (book_id) REFERENCES Books(book_id),  -- 外键，指向Books表
+    FOREIGN KEY (user_id) REFERENCES Users(user_id)   -- 外键，指向Users表
+);
+
+-- 4. 查询所有未归还的图书借阅记录
+SELECT br.borrow_id, b.title, u.name, br.borrow_date
+FROM BorrowRecords br
+JOIN Books b ON br.book_id = b.book_id
+JOIN Users u ON br.user_id = u.user_id
+WHERE br.status = 'borrowed';
+
+-- 5. 查询某个用户的借阅历史（包括借阅时间和归还时间）
+SELECT b.title, br.borrow_date, br.return_date
+FROM BorrowRecords br
+JOIN Books b ON br.book_id = b.book_id
+WHERE br.user_id = ?;  -- 替换 `?` 为具体用户ID
+
+-- 6. 查询借阅次数最多的图书
+SELECT b.title, COUNT(br.borrow_id) AS borrow_count
+FROM BorrowRecords br
+JOIN Books b ON br.book_id = b.book_id
+WHERE br.status = 'returned'
+GROUP BY b.book_id
+ORDER BY borrow_count DESC
+LIMIT 1;
+
+-- 7. 查询每月借阅图书的总数
+SELECT strftime('%Y-%m', br.borrow_date) AS month, COUNT(br.borrow_id) AS total_borrows
+FROM BorrowRecords br
+GROUP BY month
+ORDER BY month DESC;
+
+-- 8. 查询某类别下所有图书的借阅情况
+SELECT b.title, COUNT(br.borrow_id) AS borrow_count
+FROM BorrowRecords br
+JOIN Books b ON br.book_id = b.book_id
+WHERE b.category = ?  -- 替换 `?` 为具体的图书类别
+GROUP BY b.book_id;
+
+-- 9. 创建索引（针对频繁查询字段）
+-- 索引1：针对BorrowRecords表的book_id和status字段
+CREATE INDEX idx_borrow_book_status ON BorrowRecords (book_id, status);
+
+-- 索引2：针对BorrowRecords表的user_id字段
+CREATE INDEX idx_borrow_user ON BorrowRecords (user_id);
